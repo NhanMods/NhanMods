@@ -1,0 +1,6 @@
+Config = {
+    namescript = "NhanMods",--Tên Script
+    logoscript = "115156977110147 ",--ID Logo Script
+    tacgia = "zioles"-- Tên Tác Giả
+}
+loadstring(game:HttpGet("https://raw.githubusercontent.com/NhanMods/zioles/main/Xeter.lua"))()
