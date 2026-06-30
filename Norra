@@ -1,0 +1,264 @@
+--[[
+    🎮 ROBLOX SWORD EXTENDED HITBOX SCRIPT
+    📱 Giao diện menu kéo thả | 🔘 Nút ON/OFF | ⚔️ Hitbox mở rộng
+]]
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+local character = player.Character or player.CharacterAdded:Wait()
+
+-- ⚙️ CẤU HÌNH
+local CONFIG = {
+    hitboxRadius = 100,
+    hitboxColor = Color3.fromRGB(255, 0, 0),
+    isEnabled = false,
+    swordName = "Sword",
+    hitboxLifetime = 0.5,
+}
+
+-- 📦 BIẾN TOÀN CỤC
+local hitTargets = {}
+local currentSword = nil
+local menuUI = nil
+
+-- ⏳ TẠO THANH LOADING
+local function createLoadingScreen()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "LoadingGUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = player:WaitForChild("PlayerGui")
+    
+    local background = Instance.new("Frame")
+    background.Size = UDim2.new(1, 0, 1, 0)
+    background.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    background.BorderSizePixel = 0
+    background.Parent = screenGui
+    
+    local container = Instance.new("Frame")
+    container.Size = UDim2.new(0, 300, 0, 120)
+    container.Position = UDim2.new(0.5, -150, 0.5, -60)
+    container.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    container.BorderColor3 = Color3.fromRGB(0, 150, 255)
+    container.BorderSizePixel = 2
+    container.Parent = background
+    
+    local icon = Instance.new("TextLabel")
+    icon.Size = UDim2.new(0, 50, 0, 50)
+    icon.Position = UDim2.new(0.5, -25, 0, 5)
+    icon.BackgroundTransparency = 1
+    icon.Text = "⚔️"
+    icon.TextSize = 40
+    icon.Font = Enum.Font.GothamBold
+    icon.Parent = container
+    
+    local text = Instance.new("TextLabel")
+    text.Size = UDim2.new(1, 0, 0, 30)
+    text.Position = UDim2.new(0, 0, 0, 55)
+    text.BackgroundTransparency = 1
+    text.TextColor3 = Color3.fromRGB(100, 200, 255)
+    text.Text = "Loading Script..."
+    text.TextSize = 14
+    text.Font = Enum.Font.GothamBold
+    text.Parent = container
+    
+    local progressBg = Instance.new("Frame")
+    progressBg.Size = UDim2.new(0, 250, 0, 8)
+    progressBg.Position = UDim2.new(0.5, -125, 0, 88)
+    progressBg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    progressBg.BorderSizePixel = 1
+    progressBg.BorderColor3 = Color3.fromRGB(100, 100, 100)
+    progressBg.Parent = container
+    
+    local progressBar = Instance.new("Frame")
+    progressBar.Size = UDim2.new(0, 0, 1, 0)
+    progressBar.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+    progressBar.BorderSizePixel = 0
+    progressBar.Parent = progressBg
+    
+    return {gui = screenGui, progressBar = progressBar, icon = icon}
+end
+
+-- ⏸️ HOẠT ĐỘC LOADING
+local function animateLoading(loadingUI, duration)
+    for i = 1, 30 do
+        loadingUI.progressBar.Size = UDim2.new(i / 30, 0, 1, 0)
+        loadingUI.icon.Rotation = (i * 12) % 360
+        wait(duration / 30)
+    end
+end
+
+-- 🎨 TẠO GIAO DIỆN MENU
+local function createMenuGUI()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "SwordMenuGUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = player:WaitForChild("PlayerGui")
+    
+    local menuFrame = Instance.new("Frame")
+    menuFrame.Name = "MenuFrame"
+    menuFrame.Size = UDim2.new(0, 250, 0, 180)
+    menuFrame.Position = UDim2.new(0, 20, 0, 100)
+    menuFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    menuFrame.BorderSizePixel = 2
+    menuFrame.BorderColor3 = Color3.fromRGB(0, 150, 255)
+    menuFrame.Parent = screenGui
+    
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Size = UDim2.new(1, -10, 0, 40)
+    statusLabel.Position = UDim2.new(0, 5, 0, 5)
+    statusLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    statusLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+    statusLabel.Text = "⚔️ SWORD SYSTEM"
+    statusLabel.TextSize = 16
+    statusLabel.Font = Enum.Font.GothamBold
+    statusLabel.Parent = menuFrame
+    
+    local toggleButton = Instance.new("TextButton")
+    toggleButton.Size = UDim2.new(1, -10, 0, 40)
+    toggleButton.Position = UDim2.new(0, 5, 0, 50)
+    toggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    toggleButton.Text = "❌ OFF"
+    toggleButton.TextSize = 14
+    toggleButton.Font = Enum.Font.GothamBold
+    toggleButton.Parent = menuFrame
+    
+    local statsLabel = Instance.new("TextLabel")
+    statsLabel.Size = UDim2.new(1, -10, 0, 30)
+    statsLabel.Position = UDim2.new(0, 5, 0, 100)
+    statsLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    statsLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    statsLabel.Text = "💥 Hit: 0 | 📏 Range: " .. CONFIG.hitboxRadius .. "m"
+    statsLabel.TextSize = 12
+    statsLabel.Font = Enum.Font.Courier
+    statsLabel.Parent = menuFrame
+    
+    local dragging, dragStart = false, Vector2.new(0, 0)
+    
+    menuFrame.InputBegan:Connect(function(input, gameProcessed)
+        if not gameProcessed and input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = mouse.Position
+        end
+    end)
+    
+    menuFrame.InputEnded:Connect(function(input) 
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end 
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = mouse.Position - dragStart
+            dragStart = mouse.Position
+            menuFrame.Position = menuFrame.Position + UDim2.new(0, delta.X, 0, delta.Y)
+        end
+    end)
+    
+    return {gui = screenGui, toggleButton = toggleButton, statusLabel = statusLabel, statsLabel = statsLabel}
+end
+
+-- 🔍 TÌM KIẾM THANH KIẾM
+local function findSword()
+    for _, obj in ipairs(character:GetChildren()) do
+        if obj.Name == CONFIG.swordName then return obj end
+    end
+    return nil
+end
+
+-- 💥 TẠO HITBOX MỞ RỘNG
+local function createExtendedHitbox()
+    if not currentSword then return end
+    
+    local hitbox = Instance.new("Part")
+    hitbox.Name = "ExtendedHitbox"
+    hitbox.Shape = Enum.PartType.Ball
+    hitbox.CanCollide = false
+    hitbox.CFrame = currentSword.CFrame
+    hitbox.Size = Vector3.new(CONFIG.hitboxRadius * 2, CONFIG.hitboxRadius * 2, CONFIG.hitboxRadius * 2)
+    hitbox.Transparency = 0.7
+    hitbox.Color = CONFIG.hitboxColor
+    hitbox.TopSurface = Enum.SurfaceType.Smooth
+    hitbox.BottomSurface = Enum.SurfaceType.Smooth
+    hitbox.Parent = currentSword
+    
+    hitbox.TouchEnded:Connect(function(hit)
+        local targetPlayer = Players:FindFirstChild(hit.Parent.Name)
+        if targetPlayer and targetPlayer ~= player then
+            local humanoid = hit.Parent:FindFirstChild("Humanoid")
+            if humanoid and not hitTargets[targetPlayer.UserId] then
+                hitTargets[targetPlayer.UserId] = true
+                print("💥 ĐÃ ĐÁNH: " .. targetPlayer.Name)
+            end
+        end
+    end)
+    
+    game:GetService("Debris"):AddItem(hitbox, CONFIG.hitboxLifetime)
+end
+
+-- ⚔️ XỬ LÝ SWING KIẾM
+local function onSwordSwing()
+    if not CONFIG.isEnabled or not currentSword then return end
+    createExtendedHitbox()
+    local sound = Instance.new("Sound")
+    sound.SoundId = "rbxassetid://1523883464"
+    sound.Volume = 0.5
+    sound.Parent = currentSword
+    sound:Play()
+    game:GetService("Debris"):AddItem(sound, 2)
+end
+
+-- 🔘 CẬP NHẬT NÚT ON/OFF
+local function updateToggleButton(ui)
+    ui.toggleButton.MouseButton1Click:Connect(function()
+        CONFIG.isEnabled = not CONFIG.isEnabled
+        if CONFIG.isEnabled then
+            ui.toggleButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+            ui.toggleButton.Text = "✅ ON"
+            ui.statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+        else
+            ui.toggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+            ui.toggleButton.Text = "❌ OFF"
+            ui.statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+            hitTargets = {}
+        end
+    end)
+end
+
+-- 📊 CẬP NHẬT THỐNG KÊ
+local function updateStats(ui)
+    local hitCount = 0
+    for _ in pairs(hitTargets) do hitCount = hitCount + 1 end
+    ui.statsLabel.Text = "💥 Hit: " .. hitCount .. " | 📏 Range: " .. CONFIG.hitboxRadius .. "m"
+end
+
+-- 🎬 KHỞI ĐỘNG
+local function init()
+    local loadingUI = createLoadingScreen()
+    animateLoading(loadingUI, 2)
+    print("⚔️ Khởi động Script...")
+    
+    menuUI = createMenuGUI()
+    updateToggleButton(menuUI)
+    
+    currentSword = findSword()
+    if not currentSword then print("❌ Không tìm thấy kiếm!") return end
+    
+    print("✅ Sẵn sàng! (Nhấn E để swing)")
+    loadingUI.gui:Destroy()
+    
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if not gameProcessed and CONFIG.isEnabled and input.KeyCode == Enum.KeyCode.E then
+            onSwordSwing()
+        end
+    end)
+    
+    RunService.RenderStepped:Connect(function()
+        if menuUI then updateStats(menuUI) end
+    end)
+end
+
+init()Hi
